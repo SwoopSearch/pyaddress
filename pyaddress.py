@@ -1,0 +1,274 @@
+# Meant to parse out address lines, minus city,state,zip into a usable dict for address matching
+# Ignores periods and commas, because no one cares.
+
+import re
+import csv
+
+# Keep lowercase, no periods
+# Requires numbers first, then option dash plus numbers.
+street_num_regex = r'(\d+)(-*)(\d*)'
+
+apartment_name = ['apartment', 'apt']
+apartment_regex_number = r'(#?)(\d*)(\w*)'
+apartment_regexes = [r'#\w+ & \w+', '#\w+ Rm \w+', "#\w+-\w", r'Apt #{0,1}\w+', r'#\w+', r'# \w+', r'Rm \w+', r'RM \w+',
+                     r'Unit #?\w+', r'- #{0,1}\w+', r'No\s?\d+\w*', r'Style\s\w{1,2}']
+
+zip_regex = r'(\d){5}'
+
+parentheses_buiding_regex = r"\(.*\)"
+
+
+class AddressParser(object):
+    suffixes = {}
+    # Lower case list of cities, used as a hint
+    cities = []
+    # Lower case list of streets, used as a hint
+    streets = []
+    prefixes = {
+        "n": "N.", "e": "E.", "s": "S.", "w": "W.", "ne": "NE.", "nw": "NW.", 'se': "SE.", 'sw': "SW.", 'north': "N.", 'east': "E.", 'south': "S.",
+        'west': "W.", 'northeast': "NE.", 'northwest': "NW.", 'southeast': "SE.", 'southwest': "SW."}
+    states = {
+        'Mississippi': 'MS', 'Oklahoma': 'OK', 'Delaware': 'DE', 'Minnesota': 'MN', 'Illinois': 'IL', 'Arkansas': 'AR',
+        'New Mexico': 'NM', 'Indiana': 'IN', 'Maryland': 'MD', 'Louisiana': 'LA', 'Idaho': 'ID', 'Wyoming': 'WY',
+        'Tennessee': 'TN', 'Arizona': 'AZ', 'Iowa': 'IA', 'Michigan': 'MI', 'Kansas': 'KS', 'Utah': 'UT',
+        'Virginia': 'VA', 'Oregon': 'OR', 'Connecticut': 'CT', 'Montana': 'MT', 'California': 'CA',
+        'Massachusetts': 'MA', 'West Virginia': 'WV', 'South Carolina': 'SC', 'New Hampshire': 'NH',
+        'Wisconsin': 'WI', 'Vermont': 'VT', 'Georgia': 'GA', 'North Dakota': 'ND', 'Pennsylvania': 'PA',
+        'Florida': 'FL', 'Alaska': 'AK', 'Kentucky': 'KY', 'Hawaii': 'HI', 'Nebraska': 'NE', 'Missouri': 'MO',
+        'Ohio': 'OH', 'Alabama': 'AL', 'New York': 'NY', 'South Dakota': 'SD', 'Colorado': 'CO', 'New Jersey': 'NJ',
+        'Washington': 'WA', 'North Carolina': 'NC', 'District of Columbia': 'DC', 'Texas': 'TX', 'Nevada': 'NV',
+        'Maine': 'ME', 'Rhode Island': 'RI'}
+
+    def __init__(self, suffixes=None, cities=None, streets=None):
+        if suffixes:
+            self.suffixes = suffixes
+        else:
+            self.load_suffixes("address_suffixes.csv")
+        if cities:
+            self.cities = cities
+        else:
+            self.load_cities("cities.csv")
+        if streets:
+            self.streets = streets
+        else:
+            self.load_streets("streets.csv")
+
+    def parse_address(self, address):
+        """
+        Return an Address object from the given address. Passes itself to the Address constructor to use all the custom
+        loaded suffixes, cities, etc.
+        """
+        return Address(address, self)
+
+    def load_suffixes(self, filename):
+        """
+        Build the suffix dictionary. The keys will be possible long versions, and the values will be the
+        accepted abbreviations. Everything should be stored using the value version, and you can search all
+        by using building a set of self.suffixes.keys() and self.suffixes.values().
+        """
+        with open(filename, 'r') as f:
+            for line in f:
+                # Make sure we have key and value
+                if len(line.split(',')) != 2:
+                    continue
+                # Strip off newlines.
+                self.suffixes[line.strip().split(',')[0]] = line.strip().split(',')[1]
+
+    def load_cities(self, filename):
+        """
+        Load up all cities in lowercase for easier matching. The file should have one city per line, with no extra
+        characters. This isn't strictly required, but will vastly increase the accuracy.
+        """
+        with open(filename, 'r') as f:
+            for line in f:
+                self.cities.append(line.strip().lower())
+
+    def load_streets(self, filename):
+        """
+        Load up all streets in lowercase for easier matching. The file should have one street per line, with no extra
+        characters. This isn't strictly required, but will vastly increase the accuracy.
+        """
+        with open(filename, 'r') as f:
+            for line in f:
+                self.streets.append(line.strip().lower())
+
+
+# Procedure: Go through backwards. First check for apartment number, then
+# street suffix, street name, street prefix, then building. For each sub,
+# check if that spot is already filled in the dict.
+class Address:
+    unmatched = False
+    house_number = None
+    street_prefix = None
+    street = None
+    street_suffix = None
+    apartment = None
+    building = None
+    city = None
+    state = None
+    zip = None
+    original = None
+    last_matched = None
+
+    def __init__(self, address, parser):
+        self.parser = parser
+        parsed_address = self.parse_address(address)
+        # Take all the keys in the returned dict and make them class attributes
+        if parsed_address:
+            for key in parsed_address:
+                setattr(self, key, parsed_address[key])
+        # if self.house_number is None or self.street is None or self.street_suffix is None:
+            # raise ValueError("Street addresses require house_number, street, and street_suffix")
+
+    def parse_address(self, address):
+        # print "Parsing " + address
+        address_dict = {'house_number': None, 'street_prefix': None, 'street': None, 'street_suffix': None,
+                        'apartment': None, 'building': None, 'original': address}
+        # Periods should not exist, remove them. Commas separate tokens.
+        address = address.strip().replace('.', '').replace(',', ' ')
+        # Save the original string
+        self.original = address
+        # Run some basic cleaning
+        address = address.replace("# ", "#")
+        address = address.replace(" & ", "&")
+        # Some people put building in parentheses at the end. Should probably fix that.
+
+        # Get rid of periods and commas, split by spaces, reverse. USPS says parse from the back.
+        # Try all our address regexs
+        for regex in apartment_regexes:
+            apartment_match = re.search(regex, address)
+            if apartment_match:
+                # print "Apartment match: " + address + ', ' + apartment_match.group(0) + ', ' + regex
+                self.apartment = apartment_match.group(0)
+                address = re.subn(regex, '', address)[0]
+                break
+        # print "Splitting: " + address
+        address = reversed(address.split())
+        # Use for contextual data
+        for token in address:
+            # Check zip code first
+            if self.check_zip(token):
+                continue
+            if self.check_state(token):
+                continue
+            if self.check_city(token):
+                continue
+            if self.check_apartment_number(token):
+                continue
+            if self.check_street_suffix(token):
+                continue
+            if self.check_house_number(token):
+                continue
+            if self.check_street(token):
+                continue
+            if self.check_building(token):
+                continue
+            if self.check_apartment_number(token):
+                continue
+            # TODO Come up with a better way to fix this. We just grab the first suffix, so if
+            # there is Dayton St and Dayton Ave in our DB, we will get a random
+#                sub_suffixes = Apartment.objects.filter(street=token)
+#                if len(sub_suffixes) > 0:
+#                    self.street_suffix = sub_suffixes[0].street_suffix
+#                else:
+#                    print "Found street in streets, but could not find a suffix."
+            print "Unmatched term: ", token, address_dict, token.lower() in self.parser.streets
+            if self.guess_unmatched(token):
+                continue
+            self.unmatched = True
+        return address_dict
+
+    def check_zip(self, token):
+        """
+        Returns true if token is matches a zip code (5 numbers). Zip code must be the last token in an address.
+        """
+        if self.last_matched is not None:
+            return False
+        if len(token) == 5 and re.match(zip_regex, token):
+            self.zip = token
+            return True
+        else:
+            return False
+
+    def check_state(self, token):
+        pass
+
+    def check_city(self, token):
+        pass
+
+    def check_apartment_number(self, token):
+        if not self.apartment and re.match(apartment_regex_number, token.lower()):
+            print "Apt regex"
+            self.apartment = token
+        ## If we come on apt or apartment and already have an apartment number, add apt or apartment to the front
+        if self.apartment and token.lower() in apartment_name:
+            print "Apt in a_n"
+            self.apartment = token + ' ' + self.apartment
+
+        if not self.street_suffix and not self.street and not self.apartment:
+            print "Searching for unmatched term: ", token, token.lower(),
+            if re.match(r'\d?\w?', token.lower()):
+                self.apartment = token
+
+    def check_street_suffix(self, token):
+        if not self.street_suffix and token.lower() in self.parser.suffixes:
+            self.street_suffix = token
+
+    def check_street(self, token):
+        if self.street_suffix and not self.street_prefix and self.house_number is None:
+            if not self.street:
+                self.street = token
+            else:
+                self.street = token + ' ' + self.street
+        if not self.street_suffix and not self.street and token.lower() in self.parser.streets:
+            self.street = token
+
+    def check_street_prefix(self, token):
+        if self.street and not self.street_prefix and token.lower() in self.parser.prefixes:
+            self.street_prefix = token
+
+    def check_house_number(self, token):
+        if self.street and re.match(street_num_regex, token.lower()):
+            if '/' in token:
+                token = token.split('/')[0]
+            if '-' in token:
+                token = token.split('-')[0]
+            self.house_number = token
+
+    def check_building(self, token):
+        # Building name check. If we have leftover and everything else is set, probably building names.
+        # Allows for multiname buildings
+        building_match = re.search(parentheses_buiding_regex, token)
+        if building_match:
+            # print "Building match"
+            self.building = building_match.group(0)
+            address = re.subn(parentheses_buiding_regex, '', token)[0]
+        if self.street and self.house_number:
+            if not self.building:
+                self.building = token
+            else:
+                self.building = token + ' ' + self.building
+
+    def guess_unmatched(self, token):
+        pass
+
+    def __repr__(self):
+        return "Address()"
+
+    def __str__(self):
+        return "Address: " + self.original
+
+
+def create_cities_csv(filename="places2k.txt", output="cities.csv"):
+    """
+    Takes the places2k.txt from USPS and creates a simple file of all cities.
+    """
+    with open(filename, 'r') as city_file:
+        with open(output, 'w') as out:
+            for line in city_file:
+                # Drop Puerto Rico (just looking for the 50 states)
+                if line[0:2] == "PR":
+                    continue
+                # Per census.gov, characters 9-72 are the name of the city or place. Cut ,off the last part, which is city, town, etc.
+#                    print " ".join(line[9:72].split()[:-1])
+                out.write(" ".join(line[9:72].split()[:-1]) + '\n')
