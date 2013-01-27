@@ -10,8 +10,7 @@ street_num_regex = r'(\d+)(-*)(\d*)'
 
 apartment_name = ['apartment', 'apt']
 apartment_regex_number = r'(#?)(\d*)(\w*)'
-apartment_regexes = [r'#\w+ & \w+', '#\w+ Rm \w+', "#\w+-\w", r'Apt #{0,1}\w+', r'#\w+', r'# \w+', r'Rm \w+', r'RM \w+',
-                     r'Unit #?\w+', r'- #{0,1}\w+', r'No\s?\d+\w*', r'Style\s\w{1,2}']
+
 
 zip_regex = r'(\d){5}'
 
@@ -137,6 +136,8 @@ class Address:
 
         # Try all our address regexes. USPS says parse from the back.
         address = reversed(address.split())
+        # Save unmatched to process after the rest is processed.
+        unmatched = []
         # Use for contextual data
         for token in address:
             # Check zip code first
@@ -156,12 +157,15 @@ class Address:
                 continue
             if self.check_building(token):
                 continue
-#            if self.check_apartment_number(token):
-#                continue
             if self.guess_unmatched(token):
                 continue
+            unmatched.append(token)
+
+        # Post processing
+        for token in unmatched:
+            if self.check_apartment_number(token):
+                continue
             print "Unmatched term: ", token
-            self.unmatched = True
 
     def check_zip(self, token):
         """
@@ -197,6 +201,12 @@ class Address:
             return False
 
     def check_apartment_number(self, token):
+        apartment_regexes = [r'#\w+ & \w+', '#\w+ Rm \w+', "#\w+-\w", r'Apt #{0,1}\w+', r'Apartment #{0,1}\w+', r'#\w+',
+                             r'# \w+', r'Rm \w+', r'RM \w+', r'Unit #?\w+', r'- #{0,1}\w+', r'No\s?\d+\w*', r'Style\s\w{1,2}']
+        for regex in apartment_regexes:
+            if re.match(regex, token):
+                self.apartment = token
+                return True
 #        if self.apartment is None and re.match(apartment_regex_number, token.lower()):
 ##            print "Apt regex"
 #            self.apartment = token

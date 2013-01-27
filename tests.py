@@ -43,7 +43,7 @@ class AddressTest(unittest.TestCase):
 
     def test_no_suffix(self):
         addr = Address("230 Lakelawn", self.parser)
-#        print addr
+        print addr
         self.assertTrue(addr.house_number == "230")
         self.assertTrue(addr.street_prefix == None)
         self.assertTrue(addr.street == "Lakelawn")
@@ -56,7 +56,7 @@ class AddressTest(unittest.TestCase):
 
     def test_building_in_front(self):
         addr = Address("Roundhouse Apartments 626 Langdon", self.parser)
-#        print addr
+        print addr
         self.assertTrue(addr.house_number == "626")
         self.assertTrue(addr.street_prefix == None)
         self.assertTrue(addr.street == "Langdon")
@@ -69,7 +69,7 @@ class AddressTest(unittest.TestCase):
 
     def test_streets_named_after_states(self):
         addr = Address("504 W. Washington Ave.", self.parser)
-        print addr
+#        print addr
         self.assertTrue(addr.house_number == "504")
         self.assertTrue(addr.street_prefix == "W.")
         self.assertTrue(addr.street == "Washington")
@@ -82,15 +82,15 @@ class AddressTest(unittest.TestCase):
 
     def test_hash_apartment(self):
         addr = Address("407 West Doty St. #2", self.parser)
-        print addr
-        self.assertTrue(addr.house_number == "504")
+#        print addr
+        self.assertTrue(addr.house_number == "407")
         self.assertTrue(addr.street_prefix == "W.")
-        self.assertTrue(addr.street == "Washington")
-        self.assertTrue(addr.street_suffix == "Ave.")
+        self.assertTrue(addr.street == "Doty")
+        self.assertTrue(addr.street_suffix == "St.")
         self.assertTrue(addr.city == None)
         self.assertTrue(addr.state == None)
         self.assertTrue(addr.zip == None)
-        self.assertTrue(addr.apartment == None)
+        self.assertTrue(addr.apartment == "#2")
         self.assertTrue(addr.building == None)
 
 
