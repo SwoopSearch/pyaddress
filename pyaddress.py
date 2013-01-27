@@ -8,13 +8,7 @@ import csv
 # Requires numbers first, then option dash plus numbers.
 street_num_regex = r'(\d+)(-*)(\d*)'
 
-apartment_name = ['apartment', 'apt']
 apartment_regex_number = r'(#?)(\d*)(\w*)'
-
-
-zip_regex = r'(\d){5}'
-
-parentheses_buiding_regex = r"\(.*\)"
 
 
 class AddressParser(object):
@@ -108,6 +102,7 @@ class Address:
     zip = None
     original = None
     last_matched = None
+    unmatched = False
 
     def __init__(self, address, parser):
         self.parser = parser
@@ -130,9 +125,9 @@ class Address:
 
         # Save the original string
         self.original = address
-        # Run some basic cleaning
-        address = address.replace("# ", "#")
-        address = address.replace(" & ", "&")
+
+        # First, do some preprocessing
+        address = self.preprocess_address(address)
 
         # Try all our address regexes. USPS says parse from the back.
         address = reversed(address.split())
@@ -162,10 +157,29 @@ class Address:
             unmatched.append(token)
 
         # Post processing
+
         for token in unmatched:
+#            print "Unmatched token: ", token
             if self.check_apartment_number(token):
                 continue
             print "Unmatched term: ", token
+            print "Original address: ", self.original
+            self.unmatched = True
+
+    def preprocess_address(self, address):
+        """
+        Takes a basic address and attempts to clean it up, extract reasonably assured bits that may throw off the
+        rest of the parsing, and return the cleaned address.
+        """
+        # Run some basic cleaning
+        address = address.replace("# ", "#")
+        address = address.replace(" & ", "&")
+        building_match = re.search(r"\(.*\)", address)
+        if building_match:
+            self.building = building_match.group().replace('(', '').replace(')', '')
+            address = re.sub(r"\(.*\)", "", address)
+        return address
+
 
     def check_zip(self, token):
         """
@@ -174,7 +188,7 @@ class Address:
         if self.zip is None:
             if self.last_matched is not None:
                 return False
-            if len(token) == 5 and re.match(zip_regex, token):
+            if len(token) == 5 and re.match(r"\d{5}", token):
                 self.zip = token
                 return True
         return False
@@ -201,10 +215,10 @@ class Address:
             return False
 
     def check_apartment_number(self, token):
-        apartment_regexes = [r'#\w+ & \w+', '#\w+ Rm \w+', "#\w+-\w", r'Apt #{0,1}\w+', r'Apartment #{0,1}\w+', r'#\w+',
-                             r'# \w+', r'Rm \w+', r'RM \w+', r'Unit #?\w+', r'- #{0,1}\w+', r'No\s?\d+\w*', r'Style\s\w{1,2}']
+        apartment_regexes = [r'#\w+ & \w+', '#\w+ rm \w+', "#\w+-\w", r'apt #{0,1}\w+', r'apartment #{0,1}\w+', r'#\w+',
+                             r'# \w+', r'rm \w+', r'unit #?\w+', r'units #?\w+', r'- #{0,1}\w+', r'no\s?\d+\w*', r'style\s\w{1,2}', r'\d{1,4}', r'\w{1,2}']
         for regex in apartment_regexes:
-            if re.match(regex, token):
+            if re.match(regex, token.lower()):
                 self.apartment = token
                 return True
 #        if self.apartment is None and re.match(apartment_regex_number, token.lower()):
@@ -212,7 +226,7 @@ class Address:
 #            self.apartment = token
 #            return True
         ## If we come on apt or apartment and already have an apartment number, add apt or apartment to the front
-        if self.apartment and token.lower() in apartment_name:
+        if self.apartment and token.lower() in ['apt', 'apartment']:
 #            print "Apt in a_n"
             self.apartment = token + ' ' + self.apartment
             return True
@@ -279,11 +293,6 @@ class Address:
     def check_building(self, token):
         # Building name check. If we have leftover and everything else is set, probably building names.
         # Allows for multiname buildings
-        building_match = re.search(parentheses_buiding_regex, token)
-        if building_match:
-            self.building = building_match.group(0)
-            address = re.subn(parentheses_buiding_regex, '', token)[0]
-
         if self.street and self.house_number:
             if not self.building:
                 self.building = token
@@ -296,6 +305,15 @@ class Address:
         """
         When we find something that doesn't match, we can make an educated guess and log it as such.
         """
+        # Check if this is probably an apartment:
+        if token.lower() in ['apt', 'apartment']:
+            return False
+        # Stray dashes are likely useless
+        if token.strip() == '-':
+            return True
+        # Almost definitely not a street if it is one or two characters long.
+        if len(token) <= 2:
+            return False
         # Let's check for a suffix-less street.
         if self.street_suffix is None and self.street is None and self.street_prefix is None and self.house_number is None:
             # Streets will just be letters
