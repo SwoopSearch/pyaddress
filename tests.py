@@ -80,6 +80,19 @@ class AddressTest(unittest.TestCase):
         self.assertTrue(addr.apartment == None)
         self.assertTrue(addr.building == None)
 
+    def test_hash_apartment(self):
+        addr = Address("407 West Doty St. #2", self.parser)
+        print addr
+        self.assertTrue(addr.house_number == "504")
+        self.assertTrue(addr.street_prefix == "W.")
+        self.assertTrue(addr.street == "Washington")
+        self.assertTrue(addr.street_suffix == "Ave.")
+        self.assertTrue(addr.city == None)
+        self.assertTrue(addr.state == None)
+        self.assertTrue(addr.zip == None)
+        self.assertTrue(addr.apartment == None)
+        self.assertTrue(addr.building == None)
+
 
 class AddressParserTest(unittest.TestCase):
     ap = None
