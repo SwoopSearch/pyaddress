@@ -121,28 +121,21 @@ class Address:
             # raise ValueError("Street addresses require house_number, street, and street_suffix")
 
     def parse_address(self, address):
-        # print "Parsing " + address
-        address_dict = {'house_number': None, 'street_prefix': None, 'street': None, 'street_suffix': None,
-                        'apartment': None, 'building': None, 'original': address}
-        # Periods should not exist, remove them. Commas separate tokens.
-        address = address.strip().replace('.', '').replace(',', ' ')
+        # Get rid of periods and commas, split by spaces, reverse.
+        # Periods should not exist, remove them. Commas separate tokens. It's possible we can use commas for better guessing.
+        address = address.strip().replace('.', '')
+        # We'll use this for guessing.
+        self.comma_separated_address = address.split(',')
+        address = address.replace(',', '')
+
+
         # Save the original string
         self.original = address
         # Run some basic cleaning
         address = address.replace("# ", "#")
         address = address.replace(" & ", "&")
-        # Some people put building in parentheses at the end. Should probably fix that.
 
-        # Get rid of periods and commas, split by spaces, reverse. USPS says parse from the back.
-        # Try all our address regexs
-        for regex in apartment_regexes:
-            apartment_match = re.search(regex, address)
-            if apartment_match:
-                # print "Apartment match: " + address + ', ' + apartment_match.group(0) + ', ' + regex
-                self.apartment = apartment_match.group(0)
-                address = re.subn(regex, '', address)[0]
-                break
-        # print "Splitting: " + address
+        # Try all our address regexes. USPS says parse from the back.
         address = reversed(address.split())
         # Use for contextual data
         for token in address:
@@ -153,110 +146,160 @@ class Address:
                 continue
             if self.check_city(token):
                 continue
-            if self.check_apartment_number(token):
-                continue
             if self.check_street_suffix(token):
                 continue
             if self.check_house_number(token):
+                continue
+            if self.check_street_prefix(token):
                 continue
             if self.check_street(token):
                 continue
             if self.check_building(token):
                 continue
-            if self.check_apartment_number(token):
-                continue
-            # TODO Come up with a better way to fix this. We just grab the first suffix, so if
-            # there is Dayton St and Dayton Ave in our DB, we will get a random
-#                sub_suffixes = Apartment.objects.filter(street=token)
-#                if len(sub_suffixes) > 0:
-#                    self.street_suffix = sub_suffixes[0].street_suffix
-#                else:
-#                    print "Found street in streets, but could not find a suffix."
-            print "Unmatched term: ", token, address_dict, token.lower() in self.parser.streets
+#            if self.check_apartment_number(token):
+#                continue
             if self.guess_unmatched(token):
                 continue
+            print "Unmatched term: ", token
             self.unmatched = True
-        return address_dict
 
     def check_zip(self, token):
         """
         Returns true if token is matches a zip code (5 numbers). Zip code must be the last token in an address.
         """
-        if self.last_matched is not None:
-            return False
-        if len(token) == 5 and re.match(zip_regex, token):
-            self.zip = token
-            return True
-        else:
-            return False
+        if self.zip is None:
+            if self.last_matched is not None:
+                return False
+            if len(token) == 5 and re.match(zip_regex, token):
+                self.zip = token
+                return True
+        return False
 
     def check_state(self, token):
-        pass
+        """
+        Check if state is in either the keys or values of our states list.
+        """
+        if self.state is None and self.street_suffix is None and len(self.comma_separated_address) > 1:
+            if token.capitalize() in self.parser.states.keys():
+                self.state = self.parser.states[token.capitalize()]
+                return True
+            elif token.upper() in self.parser.states.values():
+                self.state = token.upper()
+                return True
+        return False
 
     def check_city(self, token):
-        pass
+        # Check that we're in the correct location, and that we have at least one comma in the address
+        if self.apartment is None and self.street_suffix is None and len(self.comma_separated_address) > 1:
+            if token.lower() in self.parser.cities:
+                self.city = token.capitalize()
+                return True
+            return False
 
     def check_apartment_number(self, token):
-        if not self.apartment and re.match(apartment_regex_number, token.lower()):
-            print "Apt regex"
-            self.apartment = token
+#        if self.apartment is None and re.match(apartment_regex_number, token.lower()):
+##            print "Apt regex"
+#            self.apartment = token
+#            return True
         ## If we come on apt or apartment and already have an apartment number, add apt or apartment to the front
         if self.apartment and token.lower() in apartment_name:
-            print "Apt in a_n"
+#            print "Apt in a_n"
             self.apartment = token + ' ' + self.apartment
+            return True
 
         if not self.street_suffix and not self.street and not self.apartment:
-            print "Searching for unmatched term: ", token, token.lower(),
+#            print "Searching for unmatched term: ", token, token.lower(),
             if re.match(r'\d?\w?', token.lower()):
                 self.apartment = token
+                return True
+        return False
 
     def check_street_suffix(self, token):
-        if not self.street_suffix and token.lower() in self.parser.suffixes:
-            self.street_suffix = token
+        """
+        Attempts to match a street suffix. If found, it will return the abbreviation, with the first letter capitalized
+        and a period after it. E.g. "St." or "Ave."
+        """
+        # Suffix must come before street
+        if self.street_suffix is None and self.street is None:
+            if token.upper() in self.parser.suffixes.keys():
+                suffix = self.parser.suffixes[token.upper()]
+                self.street_suffix = suffix.capitalize() + '.'
+                return True
+            elif token.upper() in self.parser.suffixes.values():
+                self.street_suffix = token.capitalize() + '.'
+                return True
+        return False
 
     def check_street(self, token):
-        if self.street_suffix and not self.street_prefix and self.house_number is None:
-            if not self.street:
-                self.street = token
-            else:
-                self.street = token + ' ' + self.street
+        """
+        Let's assume a street comes before a prefix and after a suffix. This isn't always the case, but we'll deal
+        with that in our guessing game. Also, two word street names...well...
+
+        This check must come after the checks for house_number and street_prefix to help us deal with multi word streets.
+        """
+        # First check for single word streets between a prefix and a suffix
+        if self.street is None and self.street_suffix is not None and self.street_prefix is None and self.house_number is None:
+            self.street = token.capitalize()
+            return True
+        # Now check for multiple word streets. This check must come after the check for street_prefix and house_number for this reason.
+        elif self.street is not None and self.street_suffix is not None and self.street_prefix is None and self.house_number is None:
+            self.street = token.capitalize() + ' ' + self.street
+            return True
         if not self.street_suffix and not self.street and token.lower() in self.parser.streets:
             self.street = token
+            return True
+        return False
 
     def check_street_prefix(self, token):
-        if self.street and not self.street_prefix and token.lower() in self.parser.prefixes:
-            self.street_prefix = token
+        if self.street and not self.street_prefix and token.lower().replace('.', '') in self.parser.prefixes.keys():
+            self.street_prefix = self.parser.prefixes[token.lower().replace('.', '')]
+            return True
+        return False
 
     def check_house_number(self, token):
-        if self.street and re.match(street_num_regex, token.lower()):
+        if self.street and self.house_number is None and re.match(street_num_regex, token.lower()):
             if '/' in token:
                 token = token.split('/')[0]
             if '-' in token:
                 token = token.split('-')[0]
-            self.house_number = token
+            self.house_number = str(token)
+            return True
+        return False
 
     def check_building(self, token):
         # Building name check. If we have leftover and everything else is set, probably building names.
         # Allows for multiname buildings
         building_match = re.search(parentheses_buiding_regex, token)
         if building_match:
-            # print "Building match"
             self.building = building_match.group(0)
             address = re.subn(parentheses_buiding_regex, '', token)[0]
+
         if self.street and self.house_number:
             if not self.building:
                 self.building = token
             else:
                 self.building = token + ' ' + self.building
+            return True
+        return False
 
     def guess_unmatched(self, token):
-        pass
+        """
+        When we find something that doesn't match, we can make an educated guess and log it as such.
+        """
+        # Let's check for a suffix-less street.
+        if self.street_suffix is None and self.street is None and self.street_prefix is None and self.house_number is None:
+            # Streets will just be letters
+            if re.match(r"[A-Za-z]", token):
+                print "Guessing suffix-less street: ", token
+                self.street = token.capitalize()
+                return True
+        return False
 
     def __repr__(self):
-        return "Address()"
+        return self.__str__()
 
     def __str__(self):
-        return "Address: " + self.original
+        return "Address - House number: " + str(self.house_number) + " Prefix: " + str(self.street_prefix) + " Street: " + str(self.street) + " Suffix: " + str(self.street_suffix) + " Apartment: " + str(self.apartment) + " Building: " + str(self.building) + " City,State,Zip: " + str(self.city) + " " + str(self.state) + " " + str(self.zip)
 
 
 def create_cities_csv(filename="places2k.txt", output="cities.csv"):
