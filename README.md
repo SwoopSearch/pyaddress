@@ -37,7 +37,7 @@ Address
 
 Addresses get returned by AddressParser.parser_address(). They have the following attributes:
 
-> house_number
+`house_number`
 
 The number on a house. This is required for all valid addresses. E.g. __123__ W. Mifflin St.
 
