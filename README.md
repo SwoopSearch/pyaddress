@@ -16,7 +16,7 @@ parse_address on our address string, which returns an Address instance with all 
 print parts of the address, change them, validate them, create a database model to store them, or anything else.
 
 ```python
-from pyaddress import AddressParser, Address
+from pyaddress.pyaddress import AddressParser, Address
 
 ap = AddressParser()
 address = ap.parse_address('123 West Mifflin Street, Madison, WI, 53703')
