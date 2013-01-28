@@ -108,7 +108,7 @@ class AddressTest(unittest.TestCase):
 
     def test_suffixless_street_with_city(self):
         addr = Address("431 West Johnson, Madison, WI", self.parser)
-        print addr
+#        print addr
         self.assertTrue(addr.house_number == "431")
         self.assertTrue(addr.street_prefix == "W.")
         self.assertTrue(addr.street == "Johnson")

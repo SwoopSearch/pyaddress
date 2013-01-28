@@ -152,7 +152,7 @@ class Address:
         unmatched = []
         # Use for contextual data
         for token in address:
-            print token, self
+#            print token, self
             # Check zip code first
             if self.check_zip(token):
                 continue
@@ -177,10 +177,10 @@ class Address:
         # Post processing
 
         for token in unmatched:
-            print "Unmatched token: ", token
+#            print "Unmatched token: ", token
             if self.check_apartment_number(token):
                 continue
-#            print "Unmatched term: ", token
+            print "Unmatched token: ", token
 #            print "Original address: ", self.original
             self.unmatched = True
 
@@ -207,7 +207,7 @@ class Address:
         for regex in apartment_regexes:
             apartment_match = re.search(regex, address, re.IGNORECASE)
             if apartment_match:
-                print "Matched regex: ", regex, apartment_match.group()
+#                print "Matched regex: ", regex, apartment_match.group()
                 self.apartment = apartment_match.group()
                 address = re.sub(regex, "", address, flags=re.IGNORECASE)
         return address
@@ -368,11 +368,11 @@ class Address:
             # Streets will just be letters
             if re.match(r"[A-Za-z]", token):
                 if self.line_number >= 0:
-#                    pass
-                    print "{0}: Guessing suffix-less street: ".format(self.line_number), token
+                    pass
+#                    print "{0}: Guessing suffix-less street: ".format(self.line_number), token
                 else:
-                    print "Guessing suffix-less street: ", token
-#                    pass
+#                    print "Guessing suffix-less street: ", token
+                    pass
                 self.street = token.capitalize()
                 return True
         return False

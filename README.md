@@ -3,6 +3,11 @@ pyaddress
 
 pyaddress is an address parsing library, taking the guesswork out of using addresses in your applications. We use it as part of our apartment search and apartment spider applications.
 
+Installation
+------------
+
+`pip install address`
+
 Example
 -------
 
@@ -83,3 +88,31 @@ The 5 digit zip code of the address, preferably following the state. 9 digit zip
 
 Returns a human readable version of the address for display. Follows the same style rules as the above attributes.
 Example return: (The Estates) 123 W. Mifflin St. Apt 10, Madison, WI 53703
+
+Todo
+----
+
+* Add verification of an address through Google Maps API, given an API key.
+
+* Allow custom validation conditions in AddressParser for what counts as a correct address or not.
+
+* Add exceptions for incorrect addresses instead of silent failing and letting user validate.
+
+GitHub
+------
+
+File support requests and obtain the source from https://github.com/SwoopSearch/pyaddress
+
+Authors
+-------
+
+* Josh Gachnang
+
+* Rob Jauquet
+
+License and Copyright
+-------
+
+Copyright (c) 2013 Swoop Search LLC.
+
+This library is released under the New BSD License.
