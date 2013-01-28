@@ -51,7 +51,7 @@ class AddressParser(object):
         if suffixes:
             self.suffixes = suffixes
         else:
-            self.load_suffixes("address_suffixes.csv")
+            self.load_suffixes("suffixes.csv")
         if cities:
             self.cities = cities
         else:
@@ -383,7 +383,7 @@ class Address:
         """
         addr = ""
         if self.building:
-            addr = addr + self.building + " - "
+            addr = addr + "(" + self.building + ") "
         if self.house_number:
             addr = addr + self.house_number
         if self.street_prefix:
