@@ -8,7 +8,9 @@ search and apartment spider applications.
 Installation
 ------------
 
-``pip install address``
+::
+
+    pip install address
 
 Example
 -------
