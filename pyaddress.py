@@ -12,6 +12,11 @@ apartment_regex_number = r'(#?)(\d*)(\w*)'
 
 
 class AddressParser(object):
+    """
+    AddressParser will be use to create Address objects. It contains a list of preseeded cities, states, prefixes,
+    suffixes, and street names that will help the Address object correctly parse the given string. It is loaded
+    with defaults that work in the average case, but can be adjusted for specific cases.
+    """
     suffixes = {}
     # Lower case list of cities, used as a hint
     cities = []
@@ -33,6 +38,16 @@ class AddressParser(object):
         'Maine': 'ME', 'Rhode Island': 'RI'}
 
     def __init__(self, suffixes=None, cities=None, streets=None):
+        """
+        suffixes, cities and streets provide a chance to use different lists than the provided lists.
+        suffixes is probably good for most users, unless you have some suffixes not recognized by USPS.
+        cities is a very expansive list that may lead to false positives in some cases. If you only have a few cities
+        you know will show up, provide your own list for better accuracy. If you are doing addresses across the US,
+        the provided list is probably better.
+        streets can be used to limit the list of possible streets the address are on. It comes blank by default and
+        uses positional clues instead. If you are instead just doing a couple cities, a list of all possible streets
+        will decrease incorrect street names.
+        """
         if suffixes:
             self.suffixes = suffixes
         else:
@@ -46,12 +61,12 @@ class AddressParser(object):
         else:
             self.load_streets("streets.csv")
 
-    def parse_address(self, address):
+    def parse_address(self, address, line_number=-1):
         """
         Return an Address object from the given address. Passes itself to the Address constructor to use all the custom
         loaded suffixes, cities, etc.
         """
-        return Address(address, self)
+        return Address(address, self, line_number)
 
     def load_suffixes(self, filename):
         """
@@ -103,9 +118,12 @@ class Address:
     original = None
     last_matched = None
     unmatched = False
+    # Only used for debug
+    line_number = -1
 
-    def __init__(self, address, parser):
+    def __init__(self, address, parser, line_number=-1):
         self.parser = parser
+        self.line_number = line_number
         parsed_address = self.parse_address(address)
         # Take all the keys in the returned dict and make them class attributes
         if parsed_address:
@@ -122,7 +140,6 @@ class Address:
         self.comma_separated_address = address.split(',')
         address = address.replace(',', '')
 
-
         # Save the original string
         self.original = address
 
@@ -135,6 +152,7 @@ class Address:
         unmatched = []
         # Use for contextual data
         for token in address:
+            print token, self
             # Check zip code first
             if self.check_zip(token):
                 continue
@@ -159,11 +177,11 @@ class Address:
         # Post processing
 
         for token in unmatched:
-#            print "Unmatched token: ", token
+            print "Unmatched token: ", token
             if self.check_apartment_number(token):
                 continue
-            print "Unmatched term: ", token
-            print "Original address: ", self.original
+#            print "Unmatched term: ", token
+#            print "Original address: ", self.original
             self.unmatched = True
 
     def preprocess_address(self, address):
@@ -174,16 +192,30 @@ class Address:
         # Run some basic cleaning
         address = address.replace("# ", "#")
         address = address.replace(" & ", "&")
-        building_match = re.search(r"\(.*\)", address)
+        # Clear the address of things like 'X units', which shouldn't be in an address anyway. We won't save this for now.
+        if re.search(r"-?-?\w+ units", address, re.IGNORECASE):
+            address = re.sub(r"-?-?\w+ units", "", address,  flags=re.IGNORECASE)
+        # Sometimes buildings are put in parantheses.
+        building_match = re.search(r"\(.*\)", address, re.IGNORECASE)
         if building_match:
             self.building = building_match.group().replace('(', '').replace(')', '')
-            address = re.sub(r"\(.*\)", "", address)
+            address = re.sub(r"\(.*\)", "", address, flags=re.IGNORECASE)
+        # Now let's get the apartment stuff out of the way. Using only sure match regexes, delete apartment parts from
+        # the address. This prevents things like "Unit" being the street name.
+        apartment_regexes = [r'#\w+ & \w+', '#\w+ rm \w+', "#\w+-\w", r'apt #{0,1}\w+', r'apartment #{0,1}\w+', r'#\w+',
+                             r'# \w+', r'rm \w+', r'unit #?\w+', r'units #?\w+', r'- #{0,1}\w+', r'no\s?\d+\w*', r'style\s\w{1,2}', r'townhouse style\s\w{1,2}',]
+        for regex in apartment_regexes:
+            apartment_match = re.search(regex, address, re.IGNORECASE)
+            if apartment_match:
+                print "Matched regex: ", regex, apartment_match.group()
+                self.apartment = apartment_match.group()
+                address = re.sub(regex, "", address, flags=re.IGNORECASE)
         return address
-
 
     def check_zip(self, token):
         """
-        Returns true if token is matches a zip code (5 numbers). Zip code must be the last token in an address.
+        Returns true if token is matches a zip code (5 numbers). Zip code must be the last token in an address (minus anything
+        removed during preprocessing such as --2 units.
         """
         if self.zip is None:
             if self.last_matched is not None:
@@ -195,7 +227,7 @@ class Address:
 
     def check_state(self, token):
         """
-        Check if state is in either the keys or values of our states list.
+        Check if state is in either the keys or values of our states list. Must come before the suffix.
         """
         if self.state is None and self.street_suffix is None and len(self.comma_separated_address) > 1:
             if token.capitalize() in self.parser.states.keys():
@@ -207,16 +239,23 @@ class Address:
         return False
 
     def check_city(self, token):
+        """
+        Check if there is a known city from our city list. Must come before the suffix.
+        """
         # Check that we're in the correct location, and that we have at least one comma in the address
-        if self.apartment is None and self.street_suffix is None and len(self.comma_separated_address) > 1:
+        if self.city is None and self.apartment is None and self.street_suffix is None and len(self.comma_separated_address) > 1:
             if token.lower() in self.parser.cities:
                 self.city = token.capitalize()
                 return True
             return False
 
     def check_apartment_number(self, token):
+        """
+        Finds apartment, unit, #, etc, regardless of spot in string. This needs to come after everything else has been ruled out,
+        because it has a lot of false positives.
+        """
         apartment_regexes = [r'#\w+ & \w+', '#\w+ rm \w+', "#\w+-\w", r'apt #{0,1}\w+', r'apartment #{0,1}\w+', r'#\w+',
-                             r'# \w+', r'rm \w+', r'unit #?\w+', r'units #?\w+', r'- #{0,1}\w+', r'no\s?\d+\w*', r'style\s\w{1,2}', r'\d{1,4}', r'\w{1,2}']
+                             r'# \w+', r'rm \w+', r'unit #?\w+', r'units #?\w+', r'- #{0,1}\w+', r'no\s?\d+\w*', r'style\s\w{1,2}', r'\d{1,4}/\d{1,4}', r'\d{1,4}', r'\w{1,2}']
         for regex in apartment_regexes:
             if re.match(regex, token.lower()):
                 self.apartment = token
@@ -275,12 +314,20 @@ class Address:
         return False
 
     def check_street_prefix(self, token):
+        """
+        Finds street prefixes, such as N. or Northwest, before a street name. Standardizes to 1 or two letters, followed
+        by a period.
+        """
         if self.street and not self.street_prefix and token.lower().replace('.', '') in self.parser.prefixes.keys():
             self.street_prefix = self.parser.prefixes[token.lower().replace('.', '')]
             return True
         return False
 
     def check_house_number(self, token):
+        """
+        Attempts to find a house number, generally the first thing in an address. If anything is in front of it,
+        we assume it is a building name.
+        """
         if self.street and self.house_number is None and re.match(street_num_regex, token.lower()):
             if '/' in token:
                 token = token.split('/')[0]
@@ -291,8 +338,10 @@ class Address:
         return False
 
     def check_building(self, token):
-        # Building name check. If we have leftover and everything else is set, probably building names.
-        # Allows for multiname buildings
+        """
+        Building name check. If we have leftover and everything else is set, probably building names.
+        Allows for multi word building names.
+        """
         if self.street and self.house_number:
             if not self.building:
                 self.building = token
@@ -318,10 +367,40 @@ class Address:
         if self.street_suffix is None and self.street is None and self.street_prefix is None and self.house_number is None:
             # Streets will just be letters
             if re.match(r"[A-Za-z]", token):
-                print "Guessing suffix-less street: ", token
+                if self.line_number >= 0:
+#                    pass
+                    print "{0}: Guessing suffix-less street: ".format(self.line_number), token
+                else:
+                    print "Guessing suffix-less street: ", token
+#                    pass
                 self.street = token.capitalize()
                 return True
         return False
+
+    def full_address(self):
+        """
+        Print the address in a human readable format
+        """
+        addr = ""
+        if self.building:
+            addr = addr + self.building + " - "
+        if self.house_number:
+            addr = addr + self.house_number
+        if self.street_prefix:
+            addr = addr + " " + self.street_prefix
+        if self.street:
+            addr = addr + " " + self.street
+        if self.street_suffix:
+            addr = addr + " " + self.street_suffix
+        if self.apartment:
+            addr = addr + " " + self.apartment
+        if self.city:
+            addr = addr + ", " + self.city
+        if self.state:
+            addr = addr + ", " + self.state
+        if self.zip:
+            addr = addr + " " + self.zip
+        return addr
 
     def __repr__(self):
         return self.__str__()

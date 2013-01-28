@@ -43,7 +43,7 @@ class AddressTest(unittest.TestCase):
 
     def test_no_suffix(self):
         addr = Address("230 Lakelawn", self.parser)
-        print addr
+#        print addr
         self.assertTrue(addr.house_number == "230")
         self.assertTrue(addr.street_prefix == None)
         self.assertTrue(addr.street == "Lakelawn")
@@ -56,7 +56,7 @@ class AddressTest(unittest.TestCase):
 
     def test_building_in_front(self):
         addr = Address("Roundhouse Apartments 626 Langdon", self.parser)
-        print addr
+#        print addr
         self.assertTrue(addr.house_number == "626")
         self.assertTrue(addr.street_prefix == None)
         self.assertTrue(addr.street == "Langdon")
@@ -93,6 +93,32 @@ class AddressTest(unittest.TestCase):
         self.assertTrue(addr.apartment == "#2")
         self.assertTrue(addr.building == None)
 
+    def test_stray_dash_apartment(self):
+        addr = Address("407 West Doty St. - #2", self.parser)
+        #        print addr
+        self.assertTrue(addr.house_number == "407")
+        self.assertTrue(addr.street_prefix == "W.")
+        self.assertTrue(addr.street == "Doty")
+        self.assertTrue(addr.street_suffix == "St.")
+        self.assertTrue(addr.city == None)
+        self.assertTrue(addr.state == None)
+        self.assertTrue(addr.zip == None)
+        self.assertTrue(addr.apartment == "#2")
+        self.assertTrue(addr.building == None)
+
+    def test_suffixless_street_with_city(self):
+        addr = Address("431 West Johnson, Madison, WI", self.parser)
+        print addr
+        self.assertTrue(addr.house_number == "431")
+        self.assertTrue(addr.street_prefix == "W.")
+        self.assertTrue(addr.street == "Johnson")
+        self.assertTrue(addr.street_suffix == None)
+        self.assertTrue(addr.city == "Madison")
+        self.assertTrue(addr.state == "WI")
+        self.assertTrue(addr.zip == None)
+        self.assertTrue(addr.apartment == None)
+        self.assertTrue(addr.building == None)
+
 
 class AddressParserTest(unittest.TestCase):
     ap = None
@@ -109,8 +135,9 @@ class AddressParserTest(unittest.TestCase):
     def test_load_states(self):
         self.assertTrue(self.ap.states["Wisconsin"] == "WI")
 
-    def test_load_streets(self):
-        self.assertTrue("mifflin" in self.ap.streets)
+    # Not using preloaded streets any more.
+#    def test_load_streets(self):
+#        self.assertTrue("mifflin" in self.ap.streets)
 
 if __name__ == '__main__':
     unittest.main()

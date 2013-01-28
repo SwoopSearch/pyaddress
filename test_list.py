@@ -18,12 +18,21 @@ if __name__ == '__main__':
     ap = AddressParser()
     with open(sys.argv[1]) as input:
         for line in input:
-            addr = ap.parse_address(line.strip())
+            addr = ap.parse_address(line.strip(), line_number=line_count)
+
             if addr.unmatched:
-                print "Unmatched", addr
+                print "Unmatched", addr, addr.line_number
                 print ""
                 unmatched_count = unmatched_count + 1
+            # All addresses have a house number and a street.
+            if addr.house_number is None:
+                print "House number cannot be None: ", addr, addr.line_number
+            if addr.street is None:
+                print "Street cannot be None: ", addr, addr.line_number
             line_count = line_count + 1
+            print addr.full_address()
+            print addr.original
+            print ""
     if unmatched_count == 0:
         print "All {0} address matched! Huzzah!".format(line_count)
     else:
