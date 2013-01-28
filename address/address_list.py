@@ -1,7 +1,7 @@
 from __future__ import division
 import sys
 import os
-from pyaddress import Address, AddressParser
+from address import Address, AddressParser
 
 
 if __name__ == '__main__':
@@ -37,6 +37,3 @@ if __name__ == '__main__':
         print "All {0} address matched! Huzzah!".format(line_count)
     else:
         print "{0} addresses of {1} ({2:.2%}) with unmatched terms. :(".format(unmatched_count, line_count, unmatched_count / line_count)
-
-
-

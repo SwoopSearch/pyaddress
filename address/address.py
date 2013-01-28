@@ -12,6 +12,7 @@ street_num_regex = r'(\d+)(-*)(\d*)'
 apartment_regex_number = r'(#?)(\d*)(\w*)'
 cwd = os.path.dirname(os.path.realpath(__file__))
 
+
 class AddressParser(object):
     """
     AddressParser will be use to create Address objects. It contains a list of preseeded cities, states, prefixes,
@@ -204,7 +205,7 @@ class Address:
         # Now let's get the apartment stuff out of the way. Using only sure match regexes, delete apartment parts from
         # the address. This prevents things like "Unit" being the street name.
         apartment_regexes = [r'#\w+ & \w+', '#\w+ rm \w+', "#\w+-\w", r'apt #{0,1}\w+', r'apartment #{0,1}\w+', r'#\w+',
-                             r'# \w+', r'rm \w+', r'unit #?\w+', r'units #?\w+', r'- #{0,1}\w+', r'no\s?\d+\w*', r'style\s\w{1,2}', r'townhouse style\s\w{1,2}',]
+                             r'# \w+', r'rm \w+', r'unit #?\w+', r'units #?\w+', r'- #{0,1}\w+', r'no\s?\d+\w*', r'style\s\w{1,2}', r'townhouse style\s\w{1,2}']
         for regex in apartment_regexes:
             apartment_match = re.search(regex, address, re.IGNORECASE)
             if apartment_match:
@@ -407,7 +408,10 @@ class Address:
         return self.__str__()
 
     def __str__(self):
-        return "Address - House number: " + str(self.house_number) + " Prefix: " + str(self.street_prefix) + " Street: " + str(self.street) + " Suffix: " + str(self.street_suffix) + " Apartment: " + str(self.apartment) + " Building: " + str(self.building) + " City,State,Zip: " + str(self.city) + " " + str(self.state) + " " + str(self.zip)
+        return "Address - House number: " + str(self.house_number) + " Prefix: " + str(self.street_prefix)\
+               + " Street: " + str(self.street) + " Suffix: " + str(self.street_suffix) + " Apartment: "\
+               + str(self.apartment) + " Building: " + str(self.building) + " City,State,Zip: " + str(self.city)\
+               + " " + str(self.state) + " " + str(self.zip)
 
 
 def create_cities_csv(filename="places2k.txt", output="cities.csv"):
