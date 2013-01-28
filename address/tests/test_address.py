@@ -1,12 +1,5 @@
-"""
-This file demonstrates writing tests using the unittest module. These will pass
-when you run "manage.py test".
-
-Replace this with more appropriate tests for your application.
-"""
-
 import unittest
-from pyaddress import Address, AddressParser
+from ..address import Address, AddressParser
 
 
 class AddressTest(unittest.TestCase):

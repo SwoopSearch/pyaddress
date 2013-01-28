@@ -1,7 +1,7 @@
-pyaddress
+address
 =========
 
-pyaddress is an address parsing library, taking the guesswork out of
+address is an address parsing library, taking the guesswork out of
 using addresses in your applications. We use it as part of our apartment
 search and apartment spider applications.
 
@@ -22,7 +22,7 @@ store them, or anything else.
 
 ::
 
-    from pyaddress.pyaddress import AddressParser, Address
+    from address import AddressParser, Address
 
     ap = AddressParser()
     address = ap.parse_address('123 West Mifflin Street, Madison, WI, 53703')

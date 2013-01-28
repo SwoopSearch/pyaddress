@@ -3,13 +3,14 @@
 
 import re
 import csv
+import os
 
 # Keep lowercase, no periods
 # Requires numbers first, then option dash plus numbers.
 street_num_regex = r'(\d+)(-*)(\d*)'
 
 apartment_regex_number = r'(#?)(\d*)(\w*)'
-
+cwd = os.path.dirname(os.path.realpath(__file__))
 
 class AddressParser(object):
     """
@@ -51,15 +52,15 @@ class AddressParser(object):
         if suffixes:
             self.suffixes = suffixes
         else:
-            self.load_suffixes("suffixes.csv")
+            self.load_suffixes(os.path.join(cwd, "suffixes.csv"))
         if cities:
             self.cities = cities
         else:
-            self.load_cities("cities.csv")
+            self.load_cities(os.path.join(cwd, "cities.csv"))
         if streets:
             self.streets = streets
         else:
-            self.load_streets("streets.csv")
+            self.load_streets(os.path.join(cwd, "streets.csv"))
 
     def parse_address(self, address, line_number=-1):
         """

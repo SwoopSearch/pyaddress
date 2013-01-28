@@ -1,14 +1,16 @@
 from distutils.core import setup
 
 setup(
-    name='pyaddress',
-    version='0.1.4',
-    py_modules=['pyaddress'],
+    name='address',
+    version='0.1.0',
     url='https://github.com/SwoopSearch/pyaddress',
     license='New BSD License',
     author='Swoop Search LLC, Josh Gachnang, Rob Jauquet',
     author_email='josh@swoopsrch.com',
-    description='pyaddress is an address parsing library, taking the guesswork out of using addresses in your applications.',
+    description='address is an address parsing library, taking the guesswork out of using addresses in your applications.',
     long_description=open('README.rst', 'rt').read(),
-    data_files=[('', ['README.rst','cities.csv', 'suffixes.csv', 'streets.csv', 'tests.py', 'test_list.py'])]
+    #data_files=[('', ['README.rst','pyaddress/cities.csv', 'pyaddress/suffixes.csv', 'pyaddress/streets.csv', 'pyaddress/tests.py', 'pyaddress/test_list.py'])],
+    packages=['address'],
+    test_suite='nose.collector',
+    tests_require=['nose'],
 )
