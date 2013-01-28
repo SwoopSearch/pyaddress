@@ -6,7 +6,9 @@ pyaddress is an address parsing library, taking the guesswork out of using addre
 Example
 -------
 
-First, we create an AddressParser. AddressParsers allow us to feed in lists of cities, streets, and address suffixes
+First, we create an AddressParser. AddressParser allows us to feed in lists of cities, streets, and address suffixes. Then we call
+parse_address on our address string, which returns an Address instance with all the attributes filled out. From there, we can
+print parts of the address, change them, validate them, create a database model to store them, or anything else.
 
 ```python
 from pyaddress import AddressParser, Address
@@ -41,43 +43,43 @@ Addresses get returned by AddressParser.parser_address(). They have the followin
 
 The number on a house. This is required for all valid addresses. E.g. __123__ W. Mifflin St.
 
-> street_prefix
+`street_prefix`
 
 The direction before the street name. Always represented as one or two letters followed by a period. Not required.
 E.g. 123 __W.__ Mifflin St.
 
-> street
+`street`
 
 The name of the street. Potentially multiple words. This is required for a valid address. E.g. 123 W. __Mifflin__ St.
 
-> street_suffix
+`street_suffix`
 
 The ending of a street. This will always be the USPS abbreviation followed by a period. Not required, but highly recommended.
  E.g. 123 W. Mifflin __St.__
 
-> apartment
+`apartment`
 
 Apartment number or unit style or any number of things signifying a specific part of an address. Not required. E.g. 123
 W. Mifflin St. __Apt 10__
 
-> buiding
+`buiding`
 
 Sometimes addresses are grouped into buildings, or are more commonly known as by building names. Not required, and often
  in parathenses. E.g. 123 W. Mifflin St. Apt 10 __(The Estates)__
 
-> city
+`city`
 
 The city part of the address, preferably following a comma. E.g. 123 W. Mifflin St., __Madison__, WI 53703
 
-> state
+`state`
 
 The state of the address, preferably following the city and a comma. Always two capitalized letters. E.g. 123 W. Mifflin St., Madison, __WI__ 53703
 
-> zip
+`zip`
 
 The 5 digit zip code of the address, preferably following the state. 9 digit zips not yet supported. E.g. 123 W. Mifflin St., Madison, WI __53703__
 
-> full_address()
+`full_address()`
 
 Returns a human readable version of the address for display. Follows the same style rules as the above attributes.
 Example return: (The Estates) 123 W. Mifflin St. Apt 10, Madison, WI 53703
