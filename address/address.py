@@ -131,6 +131,11 @@ class Address:
         if parsed_address:
             for key in parsed_address:
                 setattr(self, key, parsed_address[key])
+
+        if self.house_number is None or self.house_number <= 0:
+            raise InvalidAddressException("Addresses must have house numbers.")
+        elif self.street is None or self.street == "":
+            raise InvalidAddressException("Addresses must have streets.")
         # if self.house_number is None or self.street is None or self.street_suffix is None:
             # raise ValueError("Street addresses require house_number, street, and street_suffix")
 
@@ -427,3 +432,6 @@ def create_cities_csv(filename="places2k.txt", output="cities.csv"):
                 # Per census.gov, characters 9-72 are the name of the city or place. Cut ,off the last part, which is city, town, etc.
 #                    print " ".join(line[9:72].split()[:-1])
                 out.write(" ".join(line[9:72].split()[:-1]) + '\n')
+
+class InvalidAddressException(Exception):
+    pass
