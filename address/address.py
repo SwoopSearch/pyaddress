@@ -140,15 +140,14 @@ class Address:
             # raise ValueError("Street addresses require house_number, street, and street_suffix")
 
     def parse_address(self, address):
+        # Save the original string
+        self.original = self._clean(address)
         # Get rid of periods and commas, split by spaces, reverse.
         # Periods should not exist, remove them. Commas separate tokens. It's possible we can use commas for better guessing.
         address = address.strip().replace('.', '')
         # We'll use this for guessing.
         self.comma_separated_address = address.split(',')
         address = address.replace(',', '')
-
-        # Save the original string
-        self.original = self._clean(address)
 
         # First, do some preprocessing
         address = self.preprocess_address(address)
