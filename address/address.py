@@ -187,7 +187,7 @@ class Address:
 #            print "Unmatched token: ", token
             if self.check_apartment_number(token):
                 continue
-            print "Unmatched token: ", token
+            # print "Unmatched token: ", token
 #            print "Original address: ", self.original
             self.unmatched = True
 
@@ -410,13 +410,25 @@ class Address:
         return addr
 
     def __repr__(self):
-        return self.__str__()
+        return self.__unicode__()
 
     def __str__(self):
-        return "Address - House number: " + str(self.house_number) + " Prefix: " + str(self.street_prefix)\
-               + " Street: " + str(self.street) + " Suffix: " + str(self.street_suffix) + " Apartment: "\
-               + str(self.apartment) + " Building: " + str(self.building) + " City,State,Zip: " + str(self.city)\
-               + " " + str(self.state) + " " + str(self.zip)
+        return unicode(self).encode('utf-8')
+
+    def __unicode__(self):
+        return u"Address - House number: {house_number} Prefix: {street_prefix} Street: {street} Suffix: {street_suffix}" \
+               u" Apartment: {apartment} Building: {building} City,State,Zip: {city}, {state} {zip}".format(**{
+            "house_number": self.house_number,
+            "street_prefix": self.street_prefix,
+            "street": self.street,
+            "street_suffix": self.street_suffix,
+            "apartment": self.apartment,
+            "building": self.building,
+            "city": self.city,
+            "state": self.state,
+            "zip": self.zip
+        })
+
 
 
 def create_cities_csv(filename="places2k.txt", output="cities.csv"):
