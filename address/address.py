@@ -148,7 +148,7 @@ class Address:
         address = address.replace(',', '')
 
         # Save the original string
-        self.original = address
+        self.original = self._clean(address)
 
         # First, do some preprocessing
         address = self.preprocess_address(address)
@@ -205,7 +205,7 @@ class Address:
         # Sometimes buildings are put in parantheses.
         building_match = re.search(r"\(.*\)", address, re.IGNORECASE)
         if building_match:
-            self.building = building_match.group().replace('(', '').replace(')', '')
+            self.building = self._clean(building_match.group().replace('(', '').replace(')', ''))
             address = re.sub(r"\(.*\)", "", address, flags=re.IGNORECASE)
         # Now let's get the apartment stuff out of the way. Using only sure match regexes, delete apartment parts from
         # the address. This prevents things like "Unit" being the street name.
@@ -215,7 +215,7 @@ class Address:
             apartment_match = re.search(regex, address, re.IGNORECASE)
             if apartment_match:
 #                print "Matched regex: ", regex, apartment_match.group()
-                self.apartment = apartment_match.group()
+                self.apartment = self._clean(apartment_match.group())
                 address = re.sub(regex, "", address, flags=re.IGNORECASE)
         return address
 
@@ -228,7 +228,7 @@ class Address:
             if self.last_matched is not None:
                 return False
             if len(token) == 5 and re.match(r"\d{5}", token):
-                self.zip = token
+                self.zip = self._clean(token)
                 return True
         return False
 
@@ -238,10 +238,10 @@ class Address:
         """
         if self.state is None and self.street_suffix is None and len(self.comma_separated_address) > 1:
             if token.capitalize() in self.parser.states.keys():
-                self.state = self.parser.states[token.capitalize()]
+                self.state = self._clean(self.parser.states[token.capitalize()])
                 return True
             elif token.upper() in self.parser.states.values():
-                self.state = token.upper()
+                self.state = self._clean(token.upper())
                 return True
         return False
 
@@ -252,7 +252,7 @@ class Address:
         # Check that we're in the correct location, and that we have at least one comma in the address
         if self.city is None and self.apartment is None and self.street_suffix is None and len(self.comma_separated_address) > 1:
             if token.lower() in self.parser.cities:
-                self.city = token.capitalize()
+                self.city = self._clean(token.capitalize())
                 return True
             return False
 
@@ -265,7 +265,7 @@ class Address:
                              r'# \w+', r'rm \w+', r'unit #?\w+', r'units #?\w+', r'- #{0,1}\w+', r'no\s?\d+\w*', r'style\s\w{1,2}', r'\d{1,4}/\d{1,4}', r'\d{1,4}', r'\w{1,2}']
         for regex in apartment_regexes:
             if re.match(regex, token.lower()):
-                self.apartment = token
+                self.apartment = self._clean(token)
                 return True
 #        if self.apartment is None and re.match(apartment_regex_number, token.lower()):
 ##            print "Apt regex"
@@ -274,13 +274,13 @@ class Address:
         ## If we come on apt or apartment and already have an apartment number, add apt or apartment to the front
         if self.apartment and token.lower() in ['apt', 'apartment']:
 #            print "Apt in a_n"
-            self.apartment = token + ' ' + self.apartment
+            self.apartment = self._clean(token + ' ' + self.apartment)
             return True
 
         if not self.street_suffix and not self.street and not self.apartment:
 #            print "Searching for unmatched term: ", token, token.lower(),
             if re.match(r'\d?\w?', token.lower()):
-                self.apartment = token
+                self.apartment = self._clean(token)
                 return True
         return False
 
@@ -293,10 +293,10 @@ class Address:
         if self.street_suffix is None and self.street is None:
             if token.upper() in self.parser.suffixes.keys():
                 suffix = self.parser.suffixes[token.upper()]
-                self.street_suffix = suffix.capitalize() + '.'
+                self.street_suffix = self._clean(suffix.capitalize() + '.')
                 return True
             elif token.upper() in self.parser.suffixes.values():
-                self.street_suffix = token.capitalize() + '.'
+                self.street_suffix = self._clean(token.capitalize() + '.')
                 return True
         return False
 
@@ -309,14 +309,14 @@ class Address:
         """
         # First check for single word streets between a prefix and a suffix
         if self.street is None and self.street_suffix is not None and self.street_prefix is None and self.house_number is None:
-            self.street = token.capitalize()
+            self.street = self._clean(token.capitalize())
             return True
         # Now check for multiple word streets. This check must come after the check for street_prefix and house_number for this reason.
         elif self.street is not None and self.street_suffix is not None and self.street_prefix is None and self.house_number is None:
-            self.street = token.capitalize() + ' ' + self.street
+            self.street = self._clean(token.capitalize() + ' ' + self.street)
             return True
         if not self.street_suffix and not self.street and token.lower() in self.parser.streets:
-            self.street = token
+            self.street = self._clean(token)
             return True
         return False
 
@@ -326,7 +326,7 @@ class Address:
         by a period.
         """
         if self.street and not self.street_prefix and token.lower().replace('.', '') in self.parser.prefixes.keys():
-            self.street_prefix = self.parser.prefixes[token.lower().replace('.', '')]
+            self.street_prefix = self._clean(self.parser.prefixes[token.lower().replace('.', '')])
             return True
         return False
 
@@ -340,7 +340,7 @@ class Address:
                 token = token.split('/')[0]
             if '-' in token:
                 token = token.split('-')[0]
-            self.house_number = str(token)
+            self.house_number = self._clean(str(token))
             return True
         return False
 
@@ -351,9 +351,9 @@ class Address:
         """
         if self.street and self.house_number:
             if not self.building:
-                self.building = token
+                self.building = self._clean(token)
             else:
-                self.building = token + ' ' + self.building
+                self.building = self._clean(token + ' ' + self.building)
             return True
         return False
 
@@ -380,7 +380,7 @@ class Address:
                 else:
 #                    print "Guessing suffix-less street: ", token
                     pass
-                self.street = token.capitalize()
+                self.street = self._clean(token.capitalize())
                 return True
         return False
 
@@ -409,15 +409,20 @@ class Address:
             addr = addr + " " + self.zip
         return addr
 
+    def _clean(self, item):
+        if item is None:
+            return None
+        else:
+            return item.encode("utf-8", "replace")
+
     def __repr__(self):
-        return self.__unicode__()
+        return unicode(self)
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return unicode(self)
 
     def __unicode__(self):
-        return u"Address - House number: {house_number} Prefix: {street_prefix} Street: {street} Suffix: {street_suffix}" \
-               u" Apartment: {apartment} Building: {building} City,State,Zip: {city}, {state} {zip}".format(**{
+        address_dict = {
             "house_number": self.house_number,
             "street_prefix": self.street_prefix,
             "street": self.street,
@@ -427,7 +432,10 @@ class Address:
             "city": self.city,
             "state": self.state,
             "zip": self.zip
-        })
+        }
+        # print "Address Dict", address_dict
+        return u"Address - House number: {house_number} Prefix: {street_prefix} Street: {street} Suffix: {street_suffix}" \
+               u" Apartment: {apartment} Building: {building} City,State,Zip: {city}, {state} {zip}".format(**address_dict)
 
 
 
