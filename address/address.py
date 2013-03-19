@@ -113,7 +113,7 @@ class Address:
     street = None
     street_suffix = None
     apartment = None
-    building = None
+    # building = None
     city = None
     state = None
     zip = None
@@ -174,8 +174,8 @@ class Address:
                 continue
             if self.check_street(token):
                 continue
-            if self.check_building(token):
-                continue
+            # if self.check_building(token):
+            #     continue
             if self.guess_unmatched(token):
                 continue
             unmatched.append(token)
@@ -202,10 +202,10 @@ class Address:
         if re.search(r"-?-?\w+ units", address, re.IGNORECASE):
             address = re.sub(r"-?-?\w+ units", "", address,  flags=re.IGNORECASE)
         # Sometimes buildings are put in parantheses.
-        building_match = re.search(r"\(.*\)", address, re.IGNORECASE)
-        if building_match:
-            self.building = self._clean(building_match.group().replace('(', '').replace(')', ''))
-            address = re.sub(r"\(.*\)", "", address, flags=re.IGNORECASE)
+        # building_match = re.search(r"\(.*\)", address, re.IGNORECASE)
+        # if building_match:
+        #     self.building = self._clean(building_match.group().replace('(', '').replace(')', ''))
+        #     address = re.sub(r"\(.*\)", "", address, flags=re.IGNORECASE)
         # Now let's get the apartment stuff out of the way. Using only sure match regexes, delete apartment parts from
         # the address. This prevents things like "Unit" being the street name.
         apartment_regexes = [r'#\w+ & \w+', '#\w+ rm \w+', "#\w+-\w", r'apt #{0,1}\w+', r'apartment #{0,1}\w+', r'#\w+',
@@ -388,8 +388,8 @@ class Address:
         Print the address in a human readable format
         """
         addr = ""
-        if self.building:
-            addr = addr + "(" + self.building + ") "
+        # if self.building:
+        #     addr = addr + "(" + self.building + ") "
         if self.house_number:
             addr = addr + self.house_number
         if self.street_prefix:
@@ -427,14 +427,14 @@ class Address:
             "street": self.street,
             "street_suffix": self.street_suffix,
             "apartment": self.apartment,
-            "building": self.building,
+            # "building": self.building,
             "city": self.city,
             "state": self.state,
             "zip": self.zip
         }
         # print "Address Dict", address_dict
         return u"Address - House number: {house_number} Prefix: {street_prefix} Street: {street} Suffix: {street_suffix}" \
-               u" Apartment: {apartment} Building: {building} City,State,Zip: {city}, {state} {zip}".format(**address_dict)
+               u" Apartment: {apartment City,State,Zip: {city}, {state} {zip}".format(**address_dict)
 
 
 
