@@ -140,6 +140,7 @@ class Address:
             # raise ValueError("Street addresses require house_number, street, and street_suffix")
 
     def parse_address(self, address):
+        print "YOU ARE PARSING AN ADDRESS"
         # Save the original string
         self.original = self._clean(address)
         # Get rid of periods and commas, split by spaces, reverse.
@@ -224,10 +225,13 @@ class Address:
         removed during preprocessing such as --2 units.
         """
         if self.zip is None:
+            print "last matched", self.last_matched
             if self.last_matched is not None:
                 return False
+            print "zip check", len(token) == 5, re.match(r"\d{5}", token)
             if len(token) == 5 and re.match(r"\d{5}", token):
                 self.zip = self._clean(token)
+
                 return True
         return False
 
@@ -235,6 +239,14 @@ class Address:
         """
         Check if state is in either the keys or values of our states list. Must come before the suffix.
         """
+        print "zip", self.zip
+        if len(token) == 2 and self.state is None:
+            if token.capitalize() in self.parser.states.keys():
+                self.state = self._clean(self.parser.states[token.capitalize()])
+                return True
+            elif token.upper() in self.parser.states.values():
+                self.state = self._clean(token.upper())
+                return True
         if self.state is None and self.street_suffix is None and len(self.comma_separated_address) > 1:
             if token.capitalize() in self.parser.states.keys():
                 self.state = self._clean(self.parser.states[token.capitalize()])
@@ -248,6 +260,11 @@ class Address:
         """
         Check if there is a known city from our city list. Must come before the suffix.
         """
+        if self.city is None and self.state is not None and self.street_suffix is None:
+            if token.lower() in self.parser.cities:
+                self.city = self._clean(token.capitalize())
+                return True
+            return False
         # Check that we're in the correct location, and that we have at least one comma in the address
         if self.city is None and self.apartment is None and self.street_suffix is None and len(self.comma_separated_address) > 1:
             if token.lower() in self.parser.cities:
@@ -289,7 +306,9 @@ class Address:
         and a period after it. E.g. "St." or "Ave."
         """
         # Suffix must come before street
+        print "Suffix check", token, "suffix", self.street_suffix, "street", self.street
         if self.street_suffix is None and self.street is None:
+            print "upper", token.upper()
             if token.upper() in self.parser.suffixes.keys():
                 suffix = self.parser.suffixes[token.upper()]
                 self.street_suffix = self._clean(suffix.capitalize() + '.')
@@ -434,7 +453,7 @@ class Address:
         }
         # print "Address Dict", address_dict
         return u"Address - House number: {house_number} Prefix: {street_prefix} Street: {street} Suffix: {street_suffix}" \
-               u" Apartment: {apartment City,State,Zip: {city}, {state} {zip}".format(**address_dict)
+               u" Apartment: {apartment} City,State,Zip: {city}, {state} {zip}".format(**address_dict)
 
 
 
