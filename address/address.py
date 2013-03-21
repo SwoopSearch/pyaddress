@@ -71,7 +71,7 @@ class AddressParser(object):
             if dstk_api_base is None:
                 raise ValueError("dstk_api_base is required for dstk backend.")
             self.dstk = dstk.DSTK({'apiBase':dstk_api_base})
-        elif backend == "backend":
+        elif backend == "default":
             pass
         else:
             raise ValueError("backend must be either 'default' or 'dstk'.")
