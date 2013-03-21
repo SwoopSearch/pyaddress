@@ -4,6 +4,7 @@
 import re
 import csv
 import os
+import dstk
 
 # Keep lowercase, no periods
 # Requires numbers first, then option dash plus numbers.
@@ -39,7 +40,7 @@ class AddressParser(object):
         'Washington': 'WA', 'North Carolina': 'NC', 'District of Columbia': 'DC', 'Texas': 'TX', 'Nevada': 'NV',
         'Maine': 'ME', 'Rhode Island': 'RI'}
 
-    def __init__(self, suffixes=None, cities=None, streets=None):
+    def __init__(self, suffixes=None, cities=None, streets=None, backend="default", dstk_api_base=None):
         """
         suffixes, cities and streets provide a chance to use different lists than the provided lists.
         suffixes is probably good for most users, unless you have some suffixes not recognized by USPS.
@@ -49,7 +50,11 @@ class AddressParser(object):
         streets can be used to limit the list of possible streets the address are on. It comes blank by default and
         uses positional clues instead. If you are instead just doing a couple cities, a list of all possible streets
         will decrease incorrect street names.
+        Valid backends include "default" and "dstk". If backend is dstk, it requires a dstk_api_base. Example of
+        dstk_api_base would be 'http://example.com'.
         """
+        self.backend = backend
+        self.dstk_api_base = dstk_api_base
         if suffixes:
             self.suffixes = suffixes
         else:
@@ -62,6 +67,14 @@ class AddressParser(object):
             self.streets = streets
         else:
             self.load_streets(os.path.join(cwd, "streets.csv"))
+        if backend == "dstk":
+            if dstk_api_base is None:
+                raise ValueError("dstk_api_base is required for dstk backend.")
+            self.dstk = dstk.DSTK({'apiBase':dstk_api_base})
+        elif backend == "backend":
+            pass
+        else:
+            raise ValueError("backend must be either 'default' or 'dstk'.")
 
     def parse_address(self, address, line_number=-1):
         """
@@ -118,6 +131,9 @@ class Address:
     state = None
     zip = None
     original = None
+    # Only set for dstk
+    lat = None
+    lng = None
     last_matched = None
     unmatched = False
     # Only used for debug
@@ -126,11 +142,12 @@ class Address:
     def __init__(self, address, parser, line_number=-1):
         self.parser = parser
         self.line_number = line_number
-        parsed_address = self.parse_address(address)
-        # Take all the keys in the returned dict and make them class attributes
-        if parsed_address:
-            for key in parsed_address:
-                setattr(self, key, parsed_address[key])
+        self.original = self._clean(address)
+        address = self.preprocess_address(address)
+        if parser.backend == "dstk":
+            self.dstk_parse(address, parser)
+        elif parser.backend == "default":
+            self.parse_address(address)
 
         if self.house_number is None or self.house_number <= 0:
             raise InvalidAddressException("Addresses must have house numbers.")
@@ -140,9 +157,9 @@ class Address:
             # raise ValueError("Street addresses require house_number, street, and street_suffix")
 
     def parse_address(self, address):
-        print "YOU ARE PARSING AN ADDRESS"
+        # print "YOU ARE PARSING AN ADDRESS"
         # Save the original string
-        self.original = self._clean(address)
+
         # Get rid of periods and commas, split by spaces, reverse.
         # Periods should not exist, remove them. Commas separate tokens. It's possible we can use commas for better guessing.
         address = address.strip().replace('.', '')
@@ -151,7 +168,7 @@ class Address:
         address = address.replace(',', '')
 
         # First, do some preprocessing
-        address = self.preprocess_address(address)
+        # address = self.preprocess_address(address)
 
         # Try all our address regexes. USPS says parse from the back.
         address = reversed(address.split())
@@ -217,6 +234,8 @@ class Address:
 #                print "Matched regex: ", regex, apartment_match.group()
                 self.apartment = self._clean(apartment_match.group())
                 address = re.sub(regex, "", address, flags=re.IGNORECASE)
+        # Now check for things like ",  ," which throw off dstk
+        address = re.sub(r"\,\s*\,", ",", address)
         return address
 
     def check_zip(self, token):
@@ -225,10 +244,10 @@ class Address:
         removed during preprocessing such as --2 units.
         """
         if self.zip is None:
-            print "last matched", self.last_matched
+            # print "last matched", self.last_matched
             if self.last_matched is not None:
                 return False
-            print "zip check", len(token) == 5, re.match(r"\d{5}", token)
+            # print "zip check", len(token) == 5, re.match(r"\d{5}", token)
             if len(token) == 5 and re.match(r"\d{5}", token):
                 self.zip = self._clean(token)
 
@@ -239,7 +258,7 @@ class Address:
         """
         Check if state is in either the keys or values of our states list. Must come before the suffix.
         """
-        print "zip", self.zip
+        # print "zip", self.zip
         if len(token) == 2 and self.state is None:
             if token.capitalize() in self.parser.states.keys():
                 self.state = self._clean(self.parser.states[token.capitalize()])
@@ -306,9 +325,9 @@ class Address:
         and a period after it. E.g. "St." or "Ave."
         """
         # Suffix must come before street
-        print "Suffix check", token, "suffix", self.street_suffix, "street", self.street
+        # print "Suffix check", token, "suffix", self.street_suffix, "street", self.street
         if self.street_suffix is None and self.street is None:
-            print "upper", token.upper()
+            # print "upper", token.upper()
             if token.upper() in self.parser.suffixes.keys():
                 suffix = self.parser.suffixes[token.upper()]
                 self.street_suffix = self._clean(suffix.capitalize() + '.')
@@ -455,6 +474,58 @@ class Address:
         return u"Address - House number: {house_number} Prefix: {street_prefix} Street: {street} Suffix: {street_suffix}" \
                u" Apartment: {apartment} City,State,Zip: {city}, {state} {zip}".format(**address_dict)
 
+    def dstk_parse(self, address, parser):
+        """
+        Given an address string, use DSTK to parse the address and then coerce it to a normal Address object.
+        """
+        print "Asking DSTK for address parse {0}".format(address)
+        dstk_address = parser.dstk.street2coordinates(address)
+        print "dstk return: ", dstk_address
+        addr = dstk_address[address]
+        if "street_number" in addr:
+            self.house_number = addr["street_number"]
+        if "locality" in addr:
+            self.city = addr["locality"]
+        if "region" in addr:
+            self.state = addr["region"]
+        # if "fips_county" in addr:
+            # self.zip = addr["fips_county"]
+        if "latitude" in addr:
+            self.lat = addr["latitude"]
+        if "longitude" in addr:
+            self.lng = addr["longitude"]
+            # Try and find the apartment
+        # First remove the street_address (this doesn't include apartment)
+        if "street_address" in addr:
+            apartment = address.replace(addr["street_address"], '')
+            # try:
+            #     end_pos = re.search("(" + addr["locality"] + ")", apartment).start(1) - 1
+            #     # self.apartment = apartment[:end_pos]
+            # except Exception:
+            #     pass
+                # self.apartment = None
+        # Now that we have an address, try to parse out street suffix, prefix, and street
+        if self.apartment:
+            street_addr = addr["street_address"].replace(self.apartment, '')
+            # We should be left with only prefix, street, suffix. Go for suffix first.
+            split_addr = street_addr.split()
+            # Get rid of house_number
+            if split_addr[0] == self.house_number:
+                split_addr = split_addr[1:]
+            print "Checking {0} for suffixes".format(split_addr[-1].upper())
+            if split_addr[-1].upper() in parser.suffixes.keys() or split_addr[-1].upper() in parser.suffixes.values():
+                self.street_suffix = split_addr[-1]
+                split_addr = split_addr[:-1]
+            print "Checking {0} for prefixes".format(split_addr[0].lower())
+            if split_addr[0].lower() in parser.prefixes.keys() or split_addr[0].upper() in parser.prefixes.values() or\
+                    split_addr[0].upper() + '.' in parser.prefixes.values():
+                if split_addr[0][-1] == '.':
+                    self.street_prefix = split_addr[0].upper()
+                else:
+                    self.street_prefix = split_addr[0].upper() + '.'
+                split_addr = split_addr[1:]
+            print "Saving street: ", split_addr
+            self.street = " ".join(split_addr)
 
 
 def create_cities_csv(filename="places2k.txt", output="cities.csv"):
