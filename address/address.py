@@ -94,11 +94,12 @@ class AddressParser(object):
         for address, dstk_return in multi_address.items():
             try:
                 if dstk_return is None:
+                    # if self.logger: self.logger.debug("DSTK None return for: {0}".format(address))
                     continue
                 addresses.append(Address(address, self, -1, self.logger, dstk_pre_parse=dstk_return))
-                if self.logger: self.logger.debug("Appended: {0}".format(dstk_return))
+                if self.logger: self.logger.debug("DSTK Address Appended: {0}".format(dstk_return))
             except InvalidAddressException as e:
-                # if self.logger: self.logger.exception("Error from dstk Address.")
+                # if self.logger: self.logger.debug("Error from dstk Address: {0}".format(e.message))
                 continue
             except DSTKConfidenceTooLowException as e:
                 continue
@@ -571,29 +572,32 @@ class Address:
         # Now that we have an address, try to parse out street suffix, prefix, and street
         if self.apartment:
             street_addr = addr["street_address"].replace(self.apartment, '')
-            # We should be left with only prefix, street, suffix. Go for suffix first.
-            split_addr = street_addr.split()
-            if len(split_addr) == 0:
-                raise InvalidAddressException("Could not split street_address: {0}".format(addr))
-            # Get rid of house_number
-            if split_addr[0] == self.house_number:
-                split_addr = split_addr[1:]
-            if self.logger: self.logger.debug("Checking {0} for suffixes".format(split_addr[-1].upper()))
-            if split_addr[-1].upper() in parser.suffixes.keys() or split_addr[-1].upper() in parser.suffixes.values():
-                self.street_suffix = split_addr[-1]
-                split_addr = split_addr[:-1]
-            if self.logger: self.logger.debug("Checking {0} for prefixes".format(split_addr[0].lower()))
-            if split_addr[0].lower() in parser.prefixes.keys() or split_addr[0].upper() in parser.prefixes.values() or \
-                                    split_addr[0].upper() + '.' in parser.prefixes.values():
-                if split_addr[0][-1] == '.':
-                    self.street_prefix = split_addr[0].upper()
-                else:
-                    self.street_prefix = split_addr[0].upper() + '.'
-                if self.logger: self.logger.debug("Saving prefix: {0}".format(self.street_prefix))
-                split_addr = split_addr[1:]
-            if self.logger: self.logger.debug("Saving street: {0}".format(split_addr))
-            self.street = " ".join(split_addr)
-        if self.logger: self.logger.debug("Successful DSTK address: {0}\n".format(self.original))
+        else:
+            street_addr = addr["street_address"]
+        # We should be left with only prefix, street, suffix. Go for suffix first.
+        split_addr = street_addr.split()
+        if len(split_addr) == 0:
+            if self.logger: self.logger.debug("Could not split street_address: {0}".format(addr))
+            raise InvalidAddressException("Could not split street_address: {0}".format(addr))
+        # Get rid of house_number
+        if split_addr[0] == self.house_number:
+            split_addr = split_addr[1:]
+        if self.logger: self.logger.debug("Checking {0} for suffixes".format(split_addr[-1].upper()))
+        if split_addr[-1].upper() in parser.suffixes.keys() or split_addr[-1].upper() in parser.suffixes.values():
+            self.street_suffix = split_addr[-1]
+            split_addr = split_addr[:-1]
+        if self.logger: self.logger.debug("Checking {0} for prefixes".format(split_addr[0].lower()))
+        if split_addr[0].lower() in parser.prefixes.keys() or split_addr[0].upper() in parser.prefixes.values() or \
+                                split_addr[0].upper() + '.' in parser.prefixes.values():
+            if split_addr[0][-1] == '.':
+                self.street_prefix = split_addr[0].upper()
+            else:
+                self.street_prefix = split_addr[0].upper() + '.'
+            if self.logger: self.logger.debug("Saving prefix: {0}".format(self.street_prefix))
+            split_addr = split_addr[1:]
+        if self.logger: self.logger.debug("Saving street: {0}".format(split_addr))
+        self.street = " ".join(split_addr)
+        if self.logger: self.logger.debug("Successful DSTK address: {0}, house: {1}, street: {2}\n".format(self.original, self.house_number, self.street))
 
     def _get_dstk_intersections(self, address, dstk_address):
         # Normalize both addresses
