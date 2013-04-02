@@ -548,9 +548,12 @@ class Address:
             self.house_number = addr["street_number"]
         else:
             raise InvalidAddressException("(dstk) Addresses must have house numbers: {0}".format(addr))
+
         if "locality" in addr:
             self.city = addr["locality"]
-
+            # DSTK shouldn't be returning unknown cities
+            if addr["locality"] not in address:
+                raise InvalidAddressException("DSTK returned a city not in the address. City: {0}, Address: {1}.".format(self.city, address))
         if "region" in addr:
             self.state = addr["region"]
             # if "fips_county" in addr:
@@ -563,6 +566,8 @@ class Address:
         # First remove the street_address (this doesn't include apartment)
         if "street_address" in addr:
             apartment = address.replace(addr["street_address"], '')
+        # Make sure the city doesn't somehow come before the street in the original string.
+
             # try:
             #     end_pos = re.search("(" + addr["locality"] + ")", apartment).start(1) - 1
             #     # self.apartment = apartment[:end_pos]
@@ -574,6 +579,7 @@ class Address:
             street_addr = addr["street_address"].replace(self.apartment, '')
         else:
             street_addr = addr["street_address"]
+
         # We should be left with only prefix, street, suffix. Go for suffix first.
         split_addr = street_addr.split()
         if len(split_addr) == 0:
@@ -597,9 +603,23 @@ class Address:
             split_addr = split_addr[1:]
         if self.logger: self.logger.debug("Saving street: {0}".format(split_addr))
         self.street = " ".join(split_addr)
+        # DSTK shouldn't be guessing cities that come before streets.
+        match = re.search(self.street, address)
+        if match is None:
+            raise InvalidAddressException("DSTK picked a street not in the original address. Street: {0}. Address: {1}.".format(self.street, address))
+        street_position = match
+        match = re.search(self.city, address)
+        if match is None:
+            raise InvalidAddressException("DSTK picked a city not in the original address. City: {0}. Address: {1}.".format(self.city, address))
+        city_position = match
+        if city_position.start(0) < street_position.end(0):
+            raise InvalidAddressException("DSTK picked a street that comes after the city. Street: {0}. City: {1}. Address: {2}.".format(self.street, self.city, address))
         if self.logger: self.logger.debug("Successful DSTK address: {0}, house: {1}, street: {2}\n".format(self.original, self.house_number, self.street))
 
     def _get_dstk_intersections(self, address, dstk_address):
+        """
+        Find the unique tokens in the original address and the returned address.
+        """
         # Normalize both addresses
         normalized_address = self._normalize(address)
         normalized_dstk_address = self._normalize(dstk_address)
@@ -610,7 +630,9 @@ class Address:
         return (len(address_uniques), len(dstk_address_uniques))
 
     def _normalize(self, address):
-        # Normalizes prefixes and suffixes
+        """
+        Normalize prefixes, suffixes and other to make matching original to returned easier.
+        """
         normalized_address = []
         if self.logger: self.logger.debug("Normalizing Address: {0}".format(address))
         for token in address.split():
@@ -629,7 +651,6 @@ class Address:
             else:
                 normalized_address.append(token.lower())
         return normalized_address
-
 
 
 def create_cities_csv(filename="places2k.txt", output="cities.csv"):
