@@ -89,8 +89,12 @@ class AddressParser(object):
     def dstk_multi_address(self, address_list):
         if self.backend != "dstk":
             raise ValueError("Only allowed for DSTK backends.")
+        if self.logger: self.logger.debug("Sending {0} possible addresses to DSTK".format(len(address_list)))
         multi_address = self.dstk.street2coordinates(address_list)
+        if self.logger: self.logger.debug("Received {0} addresses from DSTK".format(len(multi_address)))
+        # if self.logger: self.logger.debug("End street2coords")
         addresses = []
+        if self.logger: self.logger.debug("Multi Addresses: {0}".format(multi_address))
         for address, dstk_return in multi_address.items():
             try:
                 if dstk_return is None:
