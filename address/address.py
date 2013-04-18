@@ -5,10 +5,11 @@ import re
 import csv
 import os
 import dstk
+import sys
 
 # Keep lowercase, no periods
 # Requires numbers first, then option dash plus numbers.
-street_num_regex = r'(\d+)(-?)(\d*)'
+street_num_regex = r'^(\d+)(-?)(\d*)$'
 
 apartment_regex_number = r'(#?)(\d*)(\w*)'
 cwd = os.path.dirname(os.path.realpath(__file__))
@@ -690,3 +691,7 @@ class InvalidAddressException(Exception):
 
 class DSTKConfidenceTooLowException(Exception):
     pass
+
+if __name__ == "__main__":
+    ap = AddressParser()
+    print ap.parse_address(" ".join(sys.argv[1:]))
