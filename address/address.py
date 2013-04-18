@@ -8,7 +8,7 @@ import dstk
 
 # Keep lowercase, no periods
 # Requires numbers first, then option dash plus numbers.
-street_num_regex = r'(\d+)(-*)(\d*)'
+street_num_regex = r'(\d+)(-?)(\d*)'
 
 apartment_regex_number = r'(#?)(\d*)(\w*)'
 cwd = os.path.dirname(os.path.realpath(__file__))
@@ -94,7 +94,7 @@ class AddressParser(object):
         if self.logger: self.logger.debug("Received {0} addresses from DSTK".format(len(multi_address)))
         # if self.logger: self.logger.debug("End street2coords")
         addresses = []
-        if self.logger: self.logger.debug("Multi Addresses: {0}".format(multi_address))
+        # if self.logger: self.logger.debug("Multi Addresses: {0}".format(multi_address))
         for address, dstk_return in multi_address.items():
             try:
                 if dstk_return is None:
@@ -318,6 +318,7 @@ class Address:
         """
         Check if there is a known city from our city list. Must come before the suffix.
         """
+        shortened_cities = {'saint': 'st.'}
         if self.city is None and self.state is not None and self.street_suffix is None:
             if token.lower() in self.parser.cities:
                 self.city = self._clean(token.capitalize())
@@ -330,6 +331,18 @@ class Address:
                 self.city = self._clean(token.capitalize())
                 return True
             return False
+        # Multi word cities
+        if self.city is not None and self.street_suffix is None and self.street is None:
+            print "Checking for multi part city", token.lower(), token.lower() in shortened_cities.keys()
+            if token.lower() + ' ' + self.city in self.parser.cities:
+                self.city = self._clean((token.lower() + ' ' + self.city).capitalize())
+                return True
+            if token.lower() in shortened_cities.keys():
+                token = shortened_cities[token.lower()]
+                print "Checking for shorted multi part city", token.lower() + ' ' + self.city
+                if token.lower() + ' ' + self.city.lower() in self.parser.cities:
+                    self.city = self._clean(token.capitalize() + ' ' + self.city.capitalize())
+                    return True
 
     def check_apartment_number(self, token):
         """
